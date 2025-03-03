@@ -42,15 +42,6 @@ public class SnapToGridScript : MonoBehaviour
         rectTransform = GetComponent<RectTransform>();
     }
 
-    /// <summary>
-    /// Call this method to externally set an initial velocity and start the spin.
-    /// </summary>
-    /// <param name="initialVelocity">The initial horizontal velocity in pixels per second.</param>
-    public void Spin(float initialVelocity)
-    {
-        velocity = initialVelocity;
-    }
-
     private void Update()
     {
         // Get the current horizontal position.

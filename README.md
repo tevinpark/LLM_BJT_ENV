@@ -20,13 +20,19 @@ The study investigates the ability of LLMs to replicate human retellings. Each r
 ```
 ├── .vscode
 ├── Assets
+│   ├── Editor
 │   ├── Materials
 │   ├── Objects
 │   ├── OfficialAsset
-│   ├── Packages
 │   ├── Samples
 │   ├── Scenes
 │   ├── TextMesh Pro
+│   ├── UIPrefab
+│   ├── UserExperienceScripts
+│   │   ├── RoundedImage.cs              # Rounded UI Image with optional outline
+│   │   ├── ScaleTowardCenter.cs         # Scales UI children by distance
+│   │   ├── ScrollViewScript.cs          # Populates scroll view with participant numbers
+│   │   ├── SnapToGridScript.cs          # Snaps UI element to the nearest grid position
 │   ├── Video
 │   ├── XR
 │   ├── XRI

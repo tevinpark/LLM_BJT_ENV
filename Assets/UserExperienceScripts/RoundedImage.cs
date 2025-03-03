@@ -58,8 +58,8 @@ public class RoundedImage : Image
         int seg = m_CornerSegments;
         List<Vector2> innerPositions = new List<Vector2>();
 
-        // Build inner boundary vertices (the “fill” shape) in clockwise order starting at bottom-left.
-        // Bottom Left Corner (180° to 270°)
+        // Build inner boundary vertices in clockwise order starting at bottom-left.
+        // Bottom Left Corner
         if (bl > 0f)
         {
             Vector2 center = new Vector2(rect.xMin + bl, rect.yMin + bl);
@@ -74,7 +74,7 @@ public class RoundedImage : Image
             innerPositions.Add(new Vector2(rect.xMin, rect.yMin));
         }
 
-        // Bottom Right Corner (270° to 360°)
+        // Bottom Right Corner
         if (br > 0f)
         {
             Vector2 center = new Vector2(rect.xMax - br, rect.yMin + br);
@@ -89,7 +89,7 @@ public class RoundedImage : Image
             innerPositions.Add(new Vector2(rect.xMax, rect.yMin));
         }
 
-        // Top Right Corner (0° to 90°)
+        // Top Right Corner
         if (tr > 0f)
         {
             Vector2 center = new Vector2(rect.xMax - tr, rect.yMax - tr);
@@ -104,7 +104,7 @@ public class RoundedImage : Image
             innerPositions.Add(new Vector2(rect.xMax, rect.yMax));
         }
 
-        // Top Left Corner (90° to 180°)
+        // Top Left Corner
         if (tl > 0f)
         {
             Vector2 center = new Vector2(rect.xMin + tl, rect.yMax - tl);
@@ -121,7 +121,7 @@ public class RoundedImage : Image
 
         int n = innerPositions.Count;
 
-        // === Outline (if enabled) ===
+        // Outline (optional)
         if (m_OutlineWidth > 0f)
         {
             List<Vector2> outerPositions = new List<Vector2>();
