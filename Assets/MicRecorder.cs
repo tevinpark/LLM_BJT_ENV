@@ -5,6 +5,7 @@ using System;
 using UnityEngine.UI;
 using TMPro;
 using System.IO;
+using UnityEditor;
 
 public class MicRecorder : MonoBehaviour
 {
@@ -52,15 +53,30 @@ public class MicRecorder : MonoBehaviour
     }
 
     // Stop recording and save
-    public void StopRecording(int participantNum, int storynum, int storyType, bool correct_environment)
+    public void StopRecording(int participantNum, int storynum, int storyType, bool correct_environment, int recordingNum, SequenceScript.SeqMode currentSeqMode)
+{
+    if (!_isRecording)
     {
-        if (_isRecording)
-        {
-            int recordedSamples = Microphone.GetPosition(_micDevice); // Get how many samples were recorded
-            Microphone.End(_micDevice);
+        Debug.LogWarning("No active recording to stop.");
+        return;
+    }
 
-            // Trim the clip to the actual recorded length
-            AudioClip trimmedClip = TrimAudioClip(_audioClip, recordedSamples);
+    // Common Logic: Stop recording and trim audio
+    int recordedSamples = Microphone.GetPosition(_micDevice);
+    Microphone.End(_micDevice);
+
+    // Trim the clip to the actual recorded length
+    AudioClip trimmedClip = TrimAudioClip(_audioClip, recordedSamples);
+
+    // Story type: 0 = audio, 1 = visual, 2 = audiovisual
+    string modality = storyType == 0 ? "audio" : storyType == 1 ? "video" : storyType == 2 ? "audiovisual" : "unknownModality";
+    string environment = correct_environment ? "correct" : "incorrect";
+    string fileName = $"p{participantNum}_story{storynum}_{modality}_{environment}.wav";
+
+    switch (currentSeqMode)
+    {
+        case SequenceScript.SeqMode.Headset:
+            // Save Locally
             string recordingsPath = Path.Combine(Application.persistentDataPath, "RecordingsFolder");
             string participantFolder = Path.Combine(recordingsPath, "p" + participantNum.ToString());
 
@@ -69,15 +85,35 @@ public class MicRecorder : MonoBehaviour
             {
                 Directory.CreateDirectory(participantFolder);
             }
-            //storytype : 0 - audio, 1 - visual, 2 = audiovisual
-            String modality = storyType == 0 ? "audio" : storyType == 1 ? "video" : storyType == 2 ? "audiovisual" : "unknownModality";
-            string environment = correct_environment == false ? "incorrect" : correct_environment == true ? "correct" : "unknownEnvironment";
-            SaveWavToSpecificFolder(trimmedClip, $"p{participantNum}_story{storynum}_{modality}_{environment}.wav", participantFolder);
-            _isRecording = false;
 
-            Debug.Log("Recording stopped and saved.");
-        }
+            SaveWavToSpecificFolder(trimmedClip, fileName, participantFolder);
+            Debug.Log($"Recording saved locally: {fileName}");
+            break;
+
+        case SequenceScript.SeqMode.Redcap:
+            // Upload to REDCap
+            REDCapAPI redcapAPI = FindObjectOfType<REDCapAPI>();
+            if (redcapAPI != null)
+            {
+                redcapAPI.UploadAudioClip(participantNum, recordingNum, fileName, trimmedClip);
+                Debug.Log($"Uploading to REDCap field: recording_{recordingNum} with filename {fileName}");
+            }
+            else
+            {
+                Debug.LogError("REDCapAPI script not found!");
+            }
+            break;
+
+        default:
+            Debug.LogWarning($"Unknown mode: {currentSeqMode}. No action taken.");
+            break;
     }
+
+    _isRecording = false;
+}
+
+
+
 
     // Trim the AudioClip to the recorded length
     private AudioClip TrimAudioClip(AudioClip clip, int recordedSamples)
@@ -163,7 +199,7 @@ public class MicRecorder : MonoBehaviour
         return uniqueFileName;
     }
 
-    private static byte[] ConvertAudioClipToWav(float[] samples, int channels, int frequency)
+    public static byte[] ConvertAudioClipToWav(float[] samples, int channels, int frequency)
     {
         using (var memoryStream = new MemoryStream())
         {
