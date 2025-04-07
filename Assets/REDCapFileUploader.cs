@@ -6,7 +6,32 @@ using System.IO;
 public class REDCapFileUploader : MonoBehaviour
 {
     private string apiUrl = "https://redcap.vumc.org/api/";
-    private string apiToken = "279376F21084ED4F7EEB1F40BDFD1A03";
+    private string apiToken;
+
+    public void CheckAndLoadApiToken()
+    {
+        string configPath = Path.Combine(Application.persistentDataPath, "api_config.json");
+
+        if (File.Exists(configPath))
+        {
+            string json = File.ReadAllText(configPath);
+            ApiTokenConfig config = JsonUtility.FromJson<ApiTokenConfig>(json);
+
+            if (!string.IsNullOrEmpty(config.apiToken))
+            {
+                apiToken = config.apiToken;
+                Debug.Log("API token loaded: " + apiToken);
+            }
+            else
+            {
+                Debug.LogWarning("API token file found but token is empty.");
+            }
+        }
+        else
+        {
+            Debug.Log("No API token config file found at: " + configPath);
+        }
+    }
 
     // Call this function to upload a WAV file
     public void UploadWavFile(string recordID, string fieldName, string filePath)
