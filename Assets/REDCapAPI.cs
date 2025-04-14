@@ -14,7 +14,7 @@ public class REDCapAPI : MonoBehaviour
 
     private string apiUrl = "https://redcap.vumc.org/api/";
 
-    public string apiToken;
+    private string apiToken;
 
 
     public void CheckAndLoadApiToken()
@@ -48,6 +48,7 @@ public class REDCapAPI : MonoBehaviour
         StartCoroutine(FetchSelectedParticipant(onComplete));
     }
 
+
     private IEnumerator FetchSelectedParticipant(Action<int, int> onResult)
     {
         WWWForm form = new WWWForm();
@@ -57,7 +58,7 @@ public class REDCapAPI : MonoBehaviour
         form.AddField("type", "flat");
 
         form.AddField("filterLogic", "[record_id] = 1");
-        form.AddField("fields", "selected_participant,environment_type");
+        form.AddField("fields", "selected_participant_1,environment_type_1,ready_1,selected_participant_2,environment_type_2,ready_2");
 
         using (UnityWebRequest www = UnityWebRequest.Post(apiUrl, form))
         {
@@ -79,21 +80,29 @@ public class REDCapAPI : MonoBehaviour
             int selectedParticipant = -1;
             int environmentType = -1;
 
+            int participantType = -1;
+
             try
             {
                 records = JsonHelper.FromJson<RecordSelectionForm>(jsonResponse);
 
                 if (records.Length > 0)
                 {
-                    string envStr = records[0].environment_type;
-                    if (!string.IsNullOrEmpty(envStr) && int.TryParse(envStr, out environmentType))
+                    if (records[0].ready_1 == "0" && !string.IsNullOrEmpty(records[0].selected_participant_1) && !string.IsNullOrEmpty(records[0].environment_type_1))
                     {
-                        int.TryParse(records[0].selected_participant, out selectedParticipant);
-                        Debug.Log($"Parsed selected_participant: {selectedParticipant}, environment_type: {environmentType}");
+                        int.TryParse(records[0].selected_participant_1, out selectedParticipant);
+                        int.TryParse(records[0].environment_type_1, out environmentType);
+                        participantType = 1;
+                    }
+                    else if (records[0].ready_2 == "0" && !string.IsNullOrEmpty(records[0].selected_participant_2) && !string.IsNullOrEmpty(records[0].environment_type_2))
+                    {
+                        int.TryParse(records[0].selected_participant_2, out selectedParticipant);
+                        int.TryParse(records[0].environment_type_2, out environmentType);
+                        participantType = 2;
                     }
                     else
                     {
-                        Debug.Log("environment_type is null or invalid. Returning -1 for both values.");
+                        Debug.Log($"No participant selections available");
                         onResult?.Invoke(-1, -1);
                         yield break;
                     }
@@ -112,31 +121,23 @@ public class REDCapAPI : MonoBehaviour
                 yield break;
             }
 
-            if (selectedParticipant >= 1)
+            bool found = false;
+            
+            Debug.Log($"Verifying if participant {selectedParticipant} exists...");
+
+            yield return StartCoroutine(FetchParticipantData(selectedParticipant, exists =>
             {
-                bool found = false;
+                found = exists;
+            }));
 
-                Debug.Log($"Verifying if participant {selectedParticipant} exists...");
-
-                yield return StartCoroutine(FetchParticipantData(selectedParticipant, exists =>
-                {
-                    found = exists;
-                }));
-
-                if (found)
-                {
-                    Debug.Log($"Participant {selectedParticipant} found in REDCap.");
-                    onResult?.Invoke(selectedParticipant, environmentType);
-                }
-                else
-                {
-                    Debug.Log($"Participant {selectedParticipant} not found in REDCap.");
-                    onResult?.Invoke(-1, environmentType);
-                }
+            if (found)
+            {
+                Debug.Log($"Participant {selectedParticipant} found in REDCap.");
+                onResult?.Invoke(selectedParticipant, environmentType);
             }
             else
             {
-                Debug.Log("Invalid or missing selected participant number.");
+                Debug.Log($"Participant {selectedParticipant} not found in REDCap.");
                 onResult?.Invoke(-1, environmentType);
             }
         }
@@ -235,13 +236,13 @@ public class REDCapAPI : MonoBehaviour
         string fieldName = $"recording_{recordingNum}";
 
         // Add 1 to the participant ID before uploading
-        int recordID = participantID + 1;
+        int recordID = participantID;
 
         WWWForm form = new WWWForm();
         form.AddField("token", apiToken);
         form.AddField("content", "file");
         form.AddField("action", "import");
-        form.AddField("record", recordID.ToString()); // Added +1 to participantID
+        form.AddField("record", recordID.ToString());
         form.AddField("field", fieldName);
         form.AddBinaryData("file", wavData, fileName, "audio/wav");
 
@@ -293,8 +294,12 @@ public static class JsonHelper
 public class RecordSelectionForm // For Unity Control Form (Only in Record ID 1)
 {
     public string record_id;
-    public string selected_participant; // selected participant ID
-    public string environment_type;
+    public string selected_participant_1; // selected participant ID 1
+    public string environment_type_1;
+    public string ready_1;
+    public string selected_participant_2; // selected participant ID 2
+    public string environment_type_2;
+    public string ready_2;
 }
 
 [System.Serializable]
@@ -305,8 +310,13 @@ public class RecordParticipantForm // For Participant Data Form (One per partici
     public string name;
     public string age;
     public string gender;
+    public string recording_0;
     public string recording_1;
     public string recording_2;
     public string recording_3;
     public string recording_4;
+    public string recording_5;
+    public string recording_6;
+    public string recording_7;
+    public string recording_8;
 }

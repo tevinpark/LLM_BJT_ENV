@@ -69,7 +69,7 @@ public class MicRecorder : MonoBehaviour
     AudioClip trimmedClip = TrimAudioClip(_audioClip, recordedSamples);
 
     // Story type: 0 = audio, 1 = visual, 2 = audiovisual
-    string modality = storyType == 0 ? "audio" : storyType == 1 ? "video" : storyType == 2 ? "audiovisual" : "unknownModality";
+    string modality = storyType == 0 ? "audio" : storyType == 1 ? "visual" : storyType == 2 ? "audiovisual" : "unknownModality";
     string environment = correct_environment ? "correct" : "incorrect";
     string fileName = $"p{participantNum}_story{storynum}_{modality}_{environment}.wav";
 
