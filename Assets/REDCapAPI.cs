@@ -15,6 +15,7 @@ public class REDCapAPI : MonoBehaviour
     private string apiUrl = "https://redcap.vumc.org/api/";
 
     private string apiToken;
+    private int slot = -1;
 
 
     public void CheckAndLoadApiToken()
@@ -42,14 +43,14 @@ public class REDCapAPI : MonoBehaviour
         }
     }
 
-    public void GetSelectedParticipant(Action<int, int> onComplete)
+    public void GetSelectedParticipant(Action<int, int, int> onComplete)
     {
         CheckAndLoadApiToken();
         StartCoroutine(FetchSelectedParticipant(onComplete));
     }
 
 
-    private IEnumerator FetchSelectedParticipant(Action<int, int> onResult)
+    private IEnumerator FetchSelectedParticipant(Action<int, int, int> onResult)
     {
         WWWForm form = new WWWForm();
         form.AddField("token", apiToken);
@@ -58,7 +59,7 @@ public class REDCapAPI : MonoBehaviour
         form.AddField("type", "flat");
 
         form.AddField("filterLogic", "[record_id] = 1");
-        form.AddField("fields", "selected_participant_1,environment_type_1,ready_1,selected_participant_2,environment_type_2,ready_2");
+        form.AddField("fields", "selected_participant_1,environment_type_1,meg_type_1,ready_1,selected_participant_2,environment_type_2,meg_type_2,ready_2");
 
         using (UnityWebRequest www = UnityWebRequest.Post(apiUrl, form))
         {
@@ -69,7 +70,7 @@ public class REDCapAPI : MonoBehaviour
             if (www.result != UnityWebRequest.Result.Success)
             {
                 Debug.Log($"Request failed: {www.error}");
-                onResult?.Invoke(-1, -1);
+                onResult?.Invoke(-1, -1, -1);
                 yield break;
             }
 
@@ -79,8 +80,7 @@ public class REDCapAPI : MonoBehaviour
             RecordSelectionForm[] records = null;
             int selectedParticipant = -1;
             int environmentType = -1;
-
-            int participantType = -1;
+            int megType = -1;
 
             try
             {
@@ -88,41 +88,43 @@ public class REDCapAPI : MonoBehaviour
 
                 if (records.Length > 0)
                 {
-                    if (records[0].ready_1 == "0" && !string.IsNullOrEmpty(records[0].selected_participant_1) && !string.IsNullOrEmpty(records[0].environment_type_1))
+                    if (records[0].ready_1 == "0" && !string.IsNullOrEmpty(records[0].selected_participant_1) && !string.IsNullOrEmpty(records[0].environment_type_1) && !string.IsNullOrEmpty(records[0].meg_type_1))
                     {
                         int.TryParse(records[0].selected_participant_1, out selectedParticipant);
                         int.TryParse(records[0].environment_type_1, out environmentType);
-                        participantType = 1;
+                        int.TryParse(records[0].meg_type_1, out megType);
+                        slot = 1;
                     }
-                    else if (records[0].ready_2 == "0" && !string.IsNullOrEmpty(records[0].selected_participant_2) && !string.IsNullOrEmpty(records[0].environment_type_2))
+                    else if (records[0].ready_2 == "0" && !string.IsNullOrEmpty(records[0].selected_participant_2) && !string.IsNullOrEmpty(records[0].environment_type_2) && !string.IsNullOrEmpty(records[0].meg_type_2))
                     {
                         int.TryParse(records[0].selected_participant_2, out selectedParticipant);
                         int.TryParse(records[0].environment_type_2, out environmentType);
-                        participantType = 2;
+                        int.TryParse(records[0].meg_type_2, out megType);
+                        slot = 2;
                     }
                     else
                     {
                         Debug.Log($"No participant selections available");
-                        onResult?.Invoke(-1, -1);
+                        onResult?.Invoke(-1, -1, -1);
                         yield break;
                     }
                 }
                 else
                 {
                     Debug.Log("No valid data found in response.");
-                    onResult?.Invoke(-1, -1);
+                    onResult?.Invoke(-1, -1, -1);
                     yield break;
                 }
             }
             catch (System.Exception e)
             {
                 Debug.Log($"JSON parsing error: {e.Message}");
-                onResult?.Invoke(-1, -1);
+                onResult?.Invoke(-1, -1, -1);
                 yield break;
             }
 
             bool found = false;
-            
+
             Debug.Log($"Verifying if participant {selectedParticipant} exists...");
 
             yield return StartCoroutine(FetchParticipantData(selectedParticipant, exists =>
@@ -133,12 +135,12 @@ public class REDCapAPI : MonoBehaviour
             if (found)
             {
                 Debug.Log($"Participant {selectedParticipant} found in REDCap.");
-                onResult?.Invoke(selectedParticipant, environmentType);
+                onResult?.Invoke(selectedParticipant, environmentType, megType);
             }
             else
             {
                 Debug.Log($"Participant {selectedParticipant} not found in REDCap.");
-                onResult?.Invoke(-1, environmentType);
+                onResult?.Invoke(-1, environmentType, megType);
             }
         }
     }
@@ -265,10 +267,57 @@ public class REDCapAPI : MonoBehaviour
         }
     }
 
+    public void SetReadyFlag(int status)
+    {
+        if (slot == -1)
+        {
+            Debug.Log("Slot is -1. Skipping update.");
+            return;
+        }
+
+        string fieldName = slot == 1 ? "ready_1" : "ready_2";
+        StartCoroutine(UpdateReadyField(fieldName, status.ToString()));
+    }
 
 
+    private IEnumerator UpdateReadyField(string fieldName, string statusValue)
+    {
+        CheckAndLoadApiToken();
 
+        string recordJson = $"[{{\"record_id\":\"1\",\"{fieldName}\":\"{statusValue}\"}}]";
 
+        WWWForm form = new WWWForm();
+        form.AddField("token", apiToken);
+        form.AddField("content", "record");
+        form.AddField("format", "json");
+        form.AddField("type", "flat");
+        form.AddField("data", recordJson);
+
+        using (UnityWebRequest www = UnityWebRequest.Post(apiUrl, form))
+        {
+            www.SetRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            yield return www.SendWebRequest();
+
+            if (www.result != UnityWebRequest.Result.Success)
+            {
+                Debug.LogError($"Error updating field '{fieldName}' to '{statusValue}': {www.error}");
+                Debug.LogError($"Response code: {www.responseCode}");
+                yield break;
+            }
+
+            string responseText = www.downloadHandler.text;
+
+            if (string.IsNullOrEmpty(responseText))
+            {
+                Debug.LogWarning($"Empty response received when updating field '{fieldName}' to '{statusValue}'.");
+            }
+            else
+            {
+                Debug.Log($"Successfully updated '{fieldName}' to '{statusValue}'. Response:\n{responseText}");
+            }
+        }
+    }
 
 
 }
@@ -295,10 +344,12 @@ public class RecordSelectionForm // For Unity Control Form (Only in Record ID 1)
 {
     public string record_id;
     public string selected_participant_1; // selected participant ID 1
-    public string environment_type_1;
+    public string environment_type_1; // for stories 1 - 6
+    public string meg_type_1; // for MEG
     public string ready_1;
     public string selected_participant_2; // selected participant ID 2
-    public string environment_type_2;
+    public string environment_type_2; // for stories 1 - 6
+    public string meg_type_2; // for MEG
     public string ready_2;
 }
 
